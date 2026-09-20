@@ -51,6 +51,9 @@ Return ONLY a valid JSON array of objects with the following schema:
 Do not include any conversational preamble or explanation, only raw valid JSON.
 """
 
+# 64-bit integer advisory lock key for cross-process PostgreSQL worker coordination
+POSTGRES_CONSOLIDATION_LOCK_ID = 982347102
+
 
 class ReflectionService:
     """Consolidates high-importance episodic interactions into procedural and semantic memory."""
@@ -249,9 +252,9 @@ class ReflectionService:
         db: SQLModelSession,
         importance_threshold: float = 0.5,
     ) -> Dict[str, Any]:
-        """Execute consolidation pass with concurrency locking."""
+        """Execute consolidation pass with PostgreSQL advisory lock and asyncio concurrency locking."""
         if self._consolidation_lock.locked():
-            logger.warning("Consolidation already in progress; skipping concurrent invocation")
+            logger.warning("Consolidation already in progress in this process; skipping concurrent invocation")
             return {
                 "status": "in_progress",
                 "message": "A consolidation cycle is already running.",
@@ -262,7 +265,42 @@ class ReflectionService:
             }
 
         async with self._consolidation_lock:
-            return await self._execute_consolidation(db=db, importance_threshold=importance_threshold)
+            # Check if connected to PostgreSQL for cross-process worker coordination
+            is_postgres = False
+            try:
+                bind = db.get_bind()
+                if bind and hasattr(bind, "dialect") and bind.dialect.name == "postgresql":
+                    is_postgres = True
+            except Exception:
+                is_postgres = False
+
+            if is_postgres:
+                from sqlalchemy import text
+                lock_stmt = text("SELECT pg_try_advisory_lock(:lock_id)")
+                lock_acquired = db.execute(lock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID}).scalar()
+                if not lock_acquired:
+                    logger.warning(
+                        "Another worker process holds PostgreSQL consolidation advisory lock; skipping concurrent cycle",
+                        lock_id=POSTGRES_CONSOLIDATION_LOCK_ID,
+                    )
+                    return {
+                        "status": "in_progress",
+                        "message": "Consolidation cycle is running in another worker process.",
+                        "processed_episodic_count": 0,
+                        "semantic_created_count": 0,
+                        "procedural_created_count": 0,
+                        "memories": [],
+                    }
+                try:
+                    return await self._execute_consolidation(db=db, importance_threshold=importance_threshold)
+                finally:
+                    try:
+                        unlock_stmt = text("SELECT pg_advisory_unlock(:lock_id)")
+                        db.execute(unlock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID})
+                    except Exception as unlock_err:
+                        logger.warning("Failed to release PostgreSQL advisory lock", error=str(unlock_err))
+            else:
+                return await self._execute_consolidation(db=db, importance_threshold=importance_threshold)
 
     async def _execute_consolidation(
         self,

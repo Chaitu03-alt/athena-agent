@@ -432,3 +432,21 @@ def test_session_cascade_delete(db_session: SQLModelSession):
     assert db_session.get(MemoryEpisodic, ep_id) is None
 
 
+@pytest.mark.asyncio
+async def test_run_db_offload_thread():
+    """Verify that run_db offloads blocking calls to a worker thread asynchronously."""
+    from app.db.session import run_db
+    import threading
+
+    current_tid = threading.get_ident()
+
+    def blocking_work(val: int) -> int:
+        worker_tid = threading.get_ident()
+        assert worker_tid != current_tid
+        return val * 2
+
+    res = await run_db(blocking_work, 21)
+    assert res == 42
+
+
+

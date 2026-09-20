@@ -1,0 +1,9 @@
+{
+  "pythonPath": "C:\\Users\\raksh\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+  "extraPaths": [
+    "backend",
+    "backend/app",
+    "C:\\Users\\raksh\\AppData\\Roaming\\Python\\Python314\\site-packages",
+    "C:\\Users\\raksh\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages"
+  ]
+}

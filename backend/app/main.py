@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import asyncio
+import structlog
 from app.config import settings
 from app.db.session import init_db
 from app.db.qdrant import ensure_qdrant_collections, get_qdrant_health
@@ -19,6 +20,8 @@ from app.api.sessions import router as sessions_router
 from app.api.memory import router as memory_router
 from app.providers.llm_provider import get_llm_provider
 from app.worker import reflection_worker
+
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
@@ -30,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         ensure_qdrant_collections()
     except Exception as exc:
-        print(f"Warning: Qdrant initialization deferred: {exc}")
+        logger.warning("Qdrant initialization deferred", error=str(exc))
 
     # Launch autonomous reflection background worker
     worker_task = asyncio.create_task(reflection_worker.start())
@@ -49,7 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Personal Adaptive AI Agent API",
     description="Backend API for personal adaptive AI agent with persistent episodic, semantic, and procedural memory.",
-    version="0.3.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -69,12 +72,12 @@ app.include_router(memory_router, prefix="/api/memory", tags=["Memory"])
 
 @app.get("/api/health", tags=["Health"])
 def health_check() -> Dict[str, Any]:
-    """Health check endpoint for Phase 3 verification."""
+    """Health check endpoint for Phase 5 verification."""
     return {
         "status": "healthy",
         "service": "personal-agent-backend",
-        "phase": "3 - Autonomous Reflection Worker & Rule Lifecycle",
-        "version": "0.3.0",
+        "phase": "5 - Procedural Tool Calling, Confidence Reinforcement & Memory Decay",
+        "version": "0.5.0",
     }
 
 

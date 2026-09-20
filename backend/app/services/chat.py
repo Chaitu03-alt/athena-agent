@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Union
 import structlog
+from sqlalchemy import func, update
 from sqlmodel import Session as SQLModelSession, col, select
 
 from app.db.session import engine
@@ -24,27 +25,30 @@ def _execute_reinforcement(
     boost_amount: float,
     now: datetime,
 ) -> List[MemoryProcedural]:
-    """Execute reinforcement updates within a session, committing immediately."""
-    stmt = (
+    """Execute atomic reinforcement updates within a session, committing immediately."""
+    if not unique_ids:
+        return []
+
+    update_stmt = (
+        update(MemoryProcedural)
+        .where(col(MemoryProcedural.id).in_(unique_ids))
+        .where(MemoryProcedural.is_active == True)  # noqa: E712
+        .values(
+            access_count=func.coalesce(MemoryProcedural.access_count, 0) + 1,
+            confidence=func.least(1.0, MemoryProcedural.confidence + boost_amount),
+            last_accessed_at=now,
+            updated_at=now,
+        )
+    )
+    session.exec(update_stmt)
+    session.commit()
+
+    fetch_stmt = (
         select(MemoryProcedural)
         .where(col(MemoryProcedural.id).in_(unique_ids))
         .where(MemoryProcedural.is_active == True)  # noqa: E712
     )
-    rules = list(session.exec(stmt).all())
-    if not rules:
-        return []
-
-    for rule in rules:
-        rule.access_count = (rule.access_count or 0) + 1
-        rule.last_accessed_at = now
-        rule.confidence = min(1.0, round(float(rule.confidence) + boost_amount, 4))
-        rule.updated_at = now
-        session.add(rule)
-
-    session.commit()
-    for rule in rules:
-        session.refresh(rule)
-
+    rules = list(session.exec(fetch_stmt).all())
     return rules
 
 
