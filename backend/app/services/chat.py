@@ -39,7 +39,7 @@ def _execute_reinforcement(
     update_stmt = (
         update(MemoryProcedural)
         .where(col(MemoryProcedural.id).in_(unique_ids))
-        .where(MemoryProcedural.is_active == True)  # noqa: E712
+        .where(col(MemoryProcedural.is_active) == True)  # noqa: E712
         .values(
             access_count=func.coalesce(MemoryProcedural.access_count, 0) + 1,
             confidence=func.least(1.0, MemoryProcedural.confidence + boost_amount),
