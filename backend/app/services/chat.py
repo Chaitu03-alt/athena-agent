@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy import func, update
 from sqlmodel import Session as SQLModelSession, col, select
 
-from app.db.session import engine
+from app.db.session import engine, run_db
 from app.models.memory import MemoryProcedural
 from app.db.qdrant import (
     update_memory_payload,
@@ -17,6 +17,13 @@ from app.db.qdrant import (
 from app.providers.embedding_provider import get_embedding_provider
 
 logger = structlog.get_logger(__name__)
+
+
+def _fetch_active_rules() -> List[MemoryProcedural]:
+    """Fetch active procedural rules in a dedicated sync session (safe for thread offload)."""
+    with SQLModelSession(engine) as session:
+        stmt = select(MemoryProcedural).where(MemoryProcedural.is_active == True)  # noqa: E712
+        return list(session.exec(stmt).all())
 
 
 def _execute_reinforcement(
@@ -152,9 +159,9 @@ async def retrieve_memory_context(
             stmt = select(MemoryProcedural).where(MemoryProcedural.is_active == True)  # noqa: E712
             active_rules = list(db.exec(stmt).all())
         else:
-            with SQLModelSession(engine) as session:
-                stmt = select(MemoryProcedural).where(MemoryProcedural.is_active == True)  # noqa: E712
-                active_rules = list(session.exec(stmt).all())
+            # Offload blocking SQLModel I/O to a thread pool so the event loop
+            # is not stalled while waiting for the DB round-trip.
+            active_rules = await run_db(_fetch_active_rules)
     except Exception as db_exc:
         logger.error("Failed to query active procedural rules from DB; continuing gracefully", error=str(db_exc))
         active_rules = []
@@ -168,7 +175,10 @@ async def retrieve_memory_context(
             timeout=timeout_seconds,
         )
 
-        retrieved_memories = search_memory_vectors(
+        # Offload the blocking Qdrant gRPC/HTTP call to a thread pool so the
+        # async event loop is not stalled during network I/O.
+        retrieved_memories = await run_db(
+            search_memory_vectors,
             query_vector=query_vector,
             limit=limit,
             collection_name=DEFAULT_COLLECTION_NAME,
@@ -203,7 +213,10 @@ async def retrieve_memory_context(
     if target_rule_ids:
         try:
             # reinforce_rule_access uses an isolated session with rollback protection
-            reinforced = reinforce_rule_access(rule_ids=target_rule_ids)
+            # Offload the blocking DB write + Qdrant payload sync to a thread
+            # pool.  reinforce_rule_access opens its own isolated session so
+            # it is safe to run outside the calling async context.
+            reinforced = await run_db(reinforce_rule_access, rule_ids=target_rule_ids)
             if reinforced:
                 active_rules = reinforced
         except Exception as reinf_exc:

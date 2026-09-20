@@ -6,11 +6,40 @@ import structlog
 from sqlmodel import Session as SQLModelSession, select
 
 from app.config import settings
-from app.db.session import engine
+from app.db.session import engine, run_db
 from app.models.memory import MemoryEpisodic
 from app.services.reflection import ReflectionService
 
 logger = structlog.get_logger(__name__)
+
+
+def _check_pending_count(importance_threshold: float) -> int:
+    """Return the number of unconsolidated episodic turns meeting the threshold.
+
+    This is a plain synchronous function so it can be safely offloaded to a
+    thread pool via ``run_db`` without holding the asyncio event loop.
+    """
+    with SQLModelSession(engine) as db:
+        stmt = (
+            select(MemoryEpisodic)
+            .where(MemoryEpisodic.consolidated == False)  # noqa: E712
+            .where(MemoryEpisodic.importance_score >= importance_threshold)
+        )
+        return len(list(db.exec(stmt).all()))
+
+
+def _run_decay_pass(reflection_service: ReflectionService) -> dict:
+    """Execute the confidence-decay pass in a dedicated session.
+
+    Blocking DB writes are isolated here so the function can be offloaded to a
+    thread pool via ``run_db`` without stalling the async event loop.
+    """
+    with SQLModelSession(engine) as decay_db:
+        try:
+            return reflection_service.decay_inactive_rules(db=decay_db)
+        except Exception as d_exc:
+            decay_db.rollback()
+            raise d_exc
 
 
 class AutonomousReflectionWorker:
@@ -38,20 +67,21 @@ class AutonomousReflectionWorker:
 
         while self.is_running:
             try:
-                # 1. Isolated session for checking unconsolidated candidate turns
+                # 1. Check for unconsolidated candidate turns — offloaded to a
+                #    thread pool so the blocking SQLModel query does not stall
+                #    the asyncio event loop.
                 pending_count = 0
                 try:
-                    with SQLModelSession(engine) as check_db:
-                        stmt = (
-                            select(MemoryEpisodic)
-                            .where(MemoryEpisodic.consolidated == False)  # noqa: E712
-                            .where(MemoryEpisodic.importance_score >= self.importance_threshold)
-                        )
-                        pending_count = len(list(check_db.exec(stmt).all()))
+                    pending_count = await run_db(_check_pending_count, self.importance_threshold)
                 except Exception as check_exc:
                     logger.error("Failed to check unconsolidated turns in worker", error=str(check_exc))
 
-                # 2. Isolated session for reflection consolidation pass
+                # 2. Reflection consolidation pass.
+                #    NOT thread-offloaded: consolidate() interleaves multiple
+                #    awaited LLM API calls (embeddings + generation) and holds
+                #    the asyncio _consolidation_lock across those awaits.  Pushing
+                #    it to a thread would require re-entrant locking and defeat
+                #    the cross-coroutine concurrency guard.
                 if pending_count > 0:
                     logger.info(
                         "Autonomous worker detected unconsolidated turns; triggering consolidation",
@@ -76,24 +106,25 @@ class AutonomousReflectionWorker:
                     except Exception as sess_exc:
                         logger.error("Session checkout error during consolidation", error=str(sess_exc))
 
-                # 3. Isolated session for procedural memory confidence decay pass
+                # 3. Confidence-decay pass — offloaded to a thread pool so the
+                #    blocking SQLModel writes + Qdrant payload syncs do not stall
+                #    the asyncio event loop.
                 try:
-                    with SQLModelSession(engine) as decay_db:
-                        try:
-                            decay_res = self.reflection_service.decay_inactive_rules(db=decay_db)
-                            if decay_res.get("decayed_count", 0) > 0 or decay_res.get("archived_count", 0) > 0:
-                                logger.info(
-                                    "Autonomous decay pass completed",
-                                    decayed=decay_res.get("decayed_count"),
-                                    archived=decay_res.get("archived_count"),
-                                )
-                        except Exception as d_exc:
-                            decay_db.rollback()
-                            logger.error("Error during autonomous decay pass; session rolled back", error=str(d_exc))
-                except Exception as sess_exc:
-                    logger.error("Session checkout error during decay pass", error=str(sess_exc))
+                    decay_res = await run_db(_run_decay_pass, self.reflection_service)
+                    if decay_res.get("decayed_count", 0) > 0 or decay_res.get("archived_count", 0) > 0:
+                        logger.info(
+                            "Autonomous decay pass completed",
+                            decayed=decay_res.get("decayed_count"),
+                            archived=decay_res.get("archived_count"),
+                        )
+                except Exception as d_exc:
+                    logger.error("Error during autonomous decay pass", error=str(d_exc))
 
-                # 4. Periodic auto-reconciliation pass between Postgres and Qdrant
+                # 4. Periodic Postgres → Qdrant reconciliation pass.
+                #    NOT thread-offloaded: sync_all_rules_to_qdrant() is async
+                #    and may itself await embed_text() for any rules missing from
+                #    Qdrant.  Mixing asyncio awaits inside asyncio.to_thread is
+                #    unsupported; the function must run on the main event loop.
                 try:
                     with SQLModelSession(engine) as sync_db:
                         try:
