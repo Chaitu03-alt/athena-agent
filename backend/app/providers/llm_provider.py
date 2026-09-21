@@ -75,6 +75,72 @@ class AnthropicLLMProvider(LLMProvider):
             full_text.append(chunk)
         return "".join(full_text)
 
+    async def complete(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute chat completion with tool calling support."""
+        from app.providers.base import LLMResponse, ToolCallRequest
+
+        system_prompt = None
+        formatted_messages = []
+        for msg in messages:
+            role = msg.get("role")
+            if role == "system":
+                system_prompt = msg.get("content")
+            elif role in ("user", "assistant"):
+                formatted_messages.append({"role": role, "content": msg.get("content", "")})
+
+        payload: Dict[str, Any] = {
+            "max_tokens": kwargs.pop("max_tokens", 4096),
+            "messages": formatted_messages,
+            "model": kwargs.pop("model", self.model),
+            **kwargs,
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+        if tools:
+            anthropic_tools = []
+            for t in tools:
+                if "function" in t:
+                    anthropic_tools.append({
+                        "name": t["function"]["name"],
+                        "description": t["function"].get("description", ""),
+                        "input_schema": t["function"].get("parameters", {}),
+                    })
+                elif "name" in t:
+                    anthropic_tools.append({
+                        "name": t["name"],
+                        "description": t.get("description", ""),
+                        "input_schema": t.get("parameters", {}),
+                    })
+            if anthropic_tools:
+                payload["tools"] = anthropic_tools
+
+        resp = await self.client.messages.create(**payload)
+
+        content_text = ""
+        tool_calls: List[ToolCallRequest] = []
+        for block in resp.content:
+            if getattr(block, "type", None) == "text":
+                content_text += getattr(block, "text", "")
+            elif getattr(block, "type", None) == "tool_use":
+                tool_calls.append(
+                    ToolCallRequest(
+                        id=getattr(block, "id", ""),
+                        tool_name=getattr(block, "name", ""),
+                        arguments=getattr(block, "input", {}) if isinstance(getattr(block, "input", None), dict) else {},
+                    )
+                )
+
+        return LLMResponse(
+            content=content_text,
+            tool_calls=tool_calls,
+            raw_response=resp,
+        )
+
 
 class MockLLMProvider(LLMProvider):
     """Simulated LLM provider used for testing and local development when API key is not set."""
@@ -305,13 +371,59 @@ class MockLLMProvider(LLMProvider):
             full_text.append(chunk)
         return "".join(full_text)
 
+    async def complete(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute mock completion compatible with AgentTurn and LLMProvider protocol."""
+        from app.providers.base import LLMResponse
 
-def get_llm_provider(model: Optional[str] = None) -> LLMProvider:
-    """Factory to retrieve configured LLM provider."""
+        system_prompt = None
+        cleaned_messages = []
+        for m in messages:
+            if m.get("role") == "system":
+                system_prompt = m.get("content")
+            elif m.get("role") in ("user", "assistant"):
+                cleaned_messages.append({
+                    "role": m.get("role"),
+                    "content": str(m.get("content", "")),
+                })
+
+        content = await self.generate(cleaned_messages, system_prompt=system_prompt)
+        return LLMResponse(content=content, tool_calls=[])
+
+
+def get_llm_provider(model: Optional[str] = None) -> Any:
+    """Factory to retrieve configured LLM provider or multi-provider chain."""
+    providers = []
+
+    if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip() and not settings.GROQ_API_KEY.startswith("your_"):
+        try:
+            from app.providers.groq_provider import GroqLLMProvider
+            providers.append(GroqLLMProvider(api_key=settings.GROQ_API_KEY))
+        except Exception:
+            pass
+
+    if settings.OPENROUTER_API_KEY and settings.OPENROUTER_API_KEY.strip() and not settings.OPENROUTER_API_KEY.startswith("your_"):
+        try:
+            from app.providers.openrouter_provider import OpenRouterLLMProvider
+            providers.append(OpenRouterLLMProvider(api_key=settings.OPENROUTER_API_KEY))
+        except Exception:
+            pass
+
     api_key = settings.ANTHROPIC_API_KEY
     if api_key and api_key.strip() and not api_key.startswith("your_anthropic_api_key"):
-        logger.info("Using Anthropic LLM Provider", model=model or settings.LLM_MODEL_PRIMARY)
-        return AnthropicLLMProvider(api_key=api_key, model=model)
+        providers.append(AnthropicLLMProvider(api_key=api_key, model=model))
 
-    logger.info("Using Mock LLM Provider (no valid ANTHROPIC_API_KEY detected)")
+    if len(providers) > 1:
+        from app.providers.chain import ProviderChain
+        logger.info("Using ProviderChain with multiple providers", count=len(providers))
+        return ProviderChain(providers)
+    elif len(providers) == 1:
+        logger.info("Using primary LLM provider", provider=providers[0].__class__.__name__)
+        return providers[0]
+
+    logger.info("Using Mock LLM Provider (no valid API keys detected)")
     return MockLLMProvider(model=model)

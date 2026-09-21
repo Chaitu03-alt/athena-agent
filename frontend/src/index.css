@@ -1,100 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import './styles/tokens.css';
+@import './styles/layout.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #07090e;
-  color: #f1f5f9;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Custom sleek scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0b0f17;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #222d42;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
-
-/* Streaming blinking cursor */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.cursor-blink {
-  display: inline-block;
-  width: 7px;
-  height: 15px;
-  background-color: #6366f1;
-  margin-left: 3px;
-  vertical-align: middle;
-  animation: blink 0.8s infinite;
-}
-
-/* Markdown styling inside assistant messages */
-.prose-custom p {
-  margin-bottom: 0.75rem;
-  line-height: 1.6;
-}
-
-.prose-custom p:last-child {
-  margin-bottom: 0;
-}
-
-.prose-custom pre {
-  margin: 0.75rem 0;
-  padding: 0.875rem 1rem;
-  background-color: #0a0d14;
-  border: 1px solid #1c2638;
-  border-radius: 0.5rem;
-  overflow-x: auto;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875rem;
-}
-
-.prose-custom code:not(pre code) {
-  background-color: #161d2d;
-  color: #a5b4fc;
-  padding: 0.15rem 0.35rem;
-  border-radius: 0.25rem;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875rem;
-  border: 1px solid #222d42;
-}
-
-.prose-custom ul, .prose-custom ol {
-  margin: 0.5rem 0 0.75rem 1.25rem;
-}
-
-.prose-custom li {
-  margin-bottom: 0.25rem;
-}
-
-.prose-custom blockquote {
-  border-left: 3px solid #6366f1;
-  padding-left: 0.75rem;
-  color: #94a3b8;
-  margin: 0.5rem 0;
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg-void);
+    color: var(--phosphor-green);
+    overflow: hidden;
+    font-family: var(--font-mono);
+  }
 }

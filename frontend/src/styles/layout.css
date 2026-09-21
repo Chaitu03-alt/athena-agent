@@ -1,0 +1,91 @@
+/* CSS Grid Shell & Cyberpunk Layout Rules */
+
+.hud-shell {
+  display: grid;
+  grid-template-rows: 40px 1fr;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-void);
+  overflow: hidden;
+  user-select: none;
+}
+
+.hud-topbar {
+  height: 40px;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  z-index: 40;
+}
+
+.hud-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.hud-drawer {
+  background-color: var(--panel-bg);
+  transition: width 0.25s cubic-bezier(0.2, 0, 0, 1), transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 30;
+}
+
+.hud-drawer-left {
+  border-right: 1px solid var(--panel-border);
+}
+
+.hud-drawer-right {
+  border-left: 1px solid var(--panel-border);
+}
+
+.hud-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-void);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Tool Node Styling */
+.tool-node-card {
+  background: rgba(16, 16, 20, 0.7);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.tool-node-card:hover {
+  border-color: rgba(0, 255, 102, 0.45);
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.15);
+}
+
+.tool-node-card.error {
+  border-left-color: var(--accent-crimson);
+}
+
+.tool-node-card.success {
+  border-left-color: var(--phosphor-green);
+}
+
+/* Code Previews */
+.terminal-pre {
+  background: #060608;
+  border: 1px solid rgba(0, 255, 102, 0.15);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 2px;
+  overflow-x: auto;
+}

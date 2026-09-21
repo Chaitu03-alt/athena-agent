@@ -49,16 +49,47 @@ class Settings(BaseSettings):
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_GRPC_PORT: int = 6334
 
-    # LLM Provider
+    # LLM Providers & Chains
     ANTHROPIC_API_KEY: Optional[str] = None
     LLM_MODEL_PRIMARY: str = "claude-sonnet-4-6"
     LLM_MODEL_LIGHT: str = "claude-haiku-4-5-20251001"
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
+
+    # Agent Autonomous Loop & Sandbox Settings
+    MAX_TOOL_CALLS: int = 5
+    TOOL_TIMEOUT_SECONDS: int = 15
+    WORKSPACE_DIR: str = "./workspace"
+
+    @property
+    def resolved_workspace_dir(self) -> Path:
+        """Resolve workspace directory to an absolute path anchored to project/backend root."""
+        workspace_path = Path(self.WORKSPACE_DIR)
+        if workspace_path.is_absolute():
+            resolved = workspace_path.resolve()
+        else:
+            candidate_roots = [
+                Path(__file__).resolve().parent.parent.parent,
+                Path(__file__).resolve().parent.parent,
+            ]
+            root_dir = candidate_roots[0]
+            for candidate in candidate_roots:
+                if (candidate / "pyproject.toml").exists() or (candidate / ".git").exists():
+                    root_dir = candidate
+                    break
+            resolved = (root_dir / workspace_path).resolve()
+        resolved.mkdir(parents=True, exist_ok=True)
+        return resolved
 
     # Embedding Provider
     EMBEDDING_MODE: str = "hosted"  # 'hosted' | 'local'
     VOYAGE_API_KEY: Optional[str] = None
+
+    # Telegram Daemon
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
+    TELEGRAM_ALLOWED_USER_IDS: str = ""  # Comma-separated list of IDs
 
     # Security & Guardrails
     APP_ACCESS_TOKEN: str = "change-me-to-a-secure-random-token"
@@ -67,3 +98,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Top-level aliases for direct imports (e.g. `from config import MAX_TOOL_CALLS`)
+GROQ_API_KEY = settings.GROQ_API_KEY
+OPENROUTER_API_KEY = settings.OPENROUTER_API_KEY
+MAX_TOOL_CALLS = settings.MAX_TOOL_CALLS
+TOOL_TIMEOUT_SECONDS = settings.TOOL_TIMEOUT_SECONDS
+WORKSPACE_DIR = settings.WORKSPACE_DIR
+

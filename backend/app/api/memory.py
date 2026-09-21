@@ -9,6 +9,8 @@ from app.db.session import get_session
 from app.db.qdrant import get_qdrant_client, get_qdrant_health, update_memory_payload, DEFAULT_COLLECTION_NAME
 from app.models.memory import MemoryEpisodic, MemoryProcedural, MemorySemantic
 from app.services.reflection import ReflectionService
+from app.memory.kv_store import KeyValueStore
+from app.memory.soul import SoulPromptManager
 
 router = APIRouter()
 reflection_service = ReflectionService()
@@ -249,3 +251,40 @@ def memory_status() -> Dict[str, Any]:
         "vector_db": health,
         "default_collection": DEFAULT_COLLECTION_NAME,
     }
+
+class KVSetRequest(BaseModel):
+    value: Dict[str, Any]
+
+@router.get("/kv", summary="Get all Key-Value profile memories")
+async def get_all_kv() -> Dict[str, Any]:
+    """Inspect all KV store memory keys."""
+    # Retrieve all keys - assuming we can fetch them via a raw query since KVStore might only have get/set.
+    # Alternatively just use execute_read_async from db/connection.
+    from app.db.connection import execute_read_async
+    import json
+    rows = await execute_read_async("SELECT key, value FROM user_kv")
+    result = {}
+    for row in rows:
+        try:
+            result[row["key"]] = json.loads(row["value"])
+        except Exception:
+            result[row["key"]] = row["value"]
+    return result
+
+@router.post("/kv/{key}", summary="Update a Key-Value profile memory")
+async def set_kv(key: str, payload: KVSetRequest) -> Dict[str, str]:
+    await KeyValueStore.set(key, payload.value)
+    return {"status": "success", "key": key}
+
+class SoulPromptUpdateRequest(BaseModel):
+    prompt_text: str
+
+@router.get("/soul", summary="Get current active soul prompt")
+async def get_soul() -> Dict[str, Any]:
+    soul = await SoulPromptManager.get_active_soul()
+    return {"status": "success", "prompt": soul}
+
+@router.post("/soul", summary="Update active soul prompt")
+async def update_soul(payload: SoulPromptUpdateRequest) -> Dict[str, str]:
+    await SoulPromptManager.set_soul_prompt(payload.prompt_text)
+    return {"status": "success", "message": "Soul prompt updated and versioned."}

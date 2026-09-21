@@ -102,6 +102,7 @@ def upsert_memory_vector(
             client.upsert(
                 collection_name=collection_name,
                 points=[point],
+                wait=True,
             )
             logger.info("Upserted point to Qdrant", point_id=point_id, collection=collection_name)
             return True
@@ -131,6 +132,7 @@ def update_memory_payload(
                 collection_name=collection_name,
                 payload=payload_update,
                 points=[str(point_id)],
+                wait=True,
             )
             logger.info("Updated Qdrant payload", point_id=str(point_id), payload_update=payload_update)
             return True
