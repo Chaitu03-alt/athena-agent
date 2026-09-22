@@ -2,7 +2,7 @@
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 import structlog
 from app.config import settings
 
@@ -13,7 +13,7 @@ class LLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
     @abstractmethod
-    async def stream_chat(
+    def stream_chat(
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
@@ -52,7 +52,7 @@ class AnthropicLLMProvider(LLMProvider):
             if msg["role"] in ("user", "assistant"):
                 formatted_messages.append({"role": msg["role"], "content": msg["content"]})
 
-        kwargs: Dict[str, object] = {
+        kwargs: Dict[str, Any] = {
             "max_tokens": 4096,
             "messages": formatted_messages,
             "model": self.model,

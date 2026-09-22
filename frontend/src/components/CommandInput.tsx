@@ -4,6 +4,12 @@ import { audio } from '../utils/audio';
 interface CommandInputProps {
   onExecute: (cmd: string) => void;
   disabled?: boolean;
+  isListening?: boolean;
+  onToggleListening?: () => void;
+  voiceLanguage?: 'en-IN' | 'hi-IN';
+  onToggleLanguage?: () => void;
+  voiceSupported?: boolean;
+  transcribedText?: string;
 }
 
 const QUICK_COMMANDS = [
@@ -14,11 +20,28 @@ const QUICK_COMMANDS = [
   { label: '/clear', cmd: '/clear' },
 ];
 
-export const CommandInput: React.FC<CommandInputProps> = ({ onExecute, disabled }) => {
+export const CommandInput: React.FC<CommandInputProps> = ({
+  onExecute,
+  disabled,
+  isListening = false,
+  onToggleListening,
+  voiceLanguage = 'en-IN',
+  onToggleLanguage,
+  voiceSupported = true,
+  transcribedText,
+}) => {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync transcribed text from speech recognition
+  useEffect(() => {
+    if (transcribedText) {
+      setInput(transcribedText);
+      inputRef.current?.focus();
+    }
+  }, [transcribedText]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -79,13 +102,59 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onExecute, disabled 
             {item.label}
           </button>
         ))}
+        {/* Voice Language Toggle & Mode Pill */}
+        {voiceSupported && (
+          <button
+            type="button"
+            onClick={onToggleLanguage}
+            className="ml-auto px-1.5 py-0.5 border border-[#00f0ff]/30 bg-[#00f0ff]/10 hover:border-[#00f0ff] text-[#00f0ff] text-[9px] font-mono rounded-sm transition-colors cursor-pointer flex items-center gap-1"
+            title="Click to toggle Speech Recognition language (English vs Hindi/Hinglish)"
+          >
+            <span>VOICE:</span>
+            <span className="font-bold">{voiceLanguage === 'hi-IN' ? 'HI (हिंदी/HINGLISH)' : 'EN (ENGLISH)'}</span>
+          </button>
+        )}
       </div>
 
       {/* Interactive Command Input Line */}
-      <div className="flex items-center gap-2 bg-[#060608] border border-[#00ff66]/40 px-3 py-2 shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] focus-within:border-[#00ff66] focus-within:shadow-[0_0_8px_rgba(0,255,102,0.3)] transition-all">
-        <span className="text-[#00ff66] font-bold tracking-tight text-xs glow-green-text shrink-0">
-          athena&gt;
-        </span>
+      <div className={`flex items-center gap-2 bg-[#060608] border px-3 py-2 shadow-[inset_0_0_10px_rgba(0,0,0,0.8)] transition-all ${
+        isListening
+          ? 'border-[#00f0ff] shadow-[0_0_12px_rgba(0,240,255,0.4)]'
+          : 'border-[#00ff66]/40 focus-within:border-[#00ff66] focus-within:shadow-[0_0_8px_rgba(0,255,102,0.3)]'
+      }`}>
+        {/* Prompt Glyphs & Mic Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[#00ff66] font-bold tracking-tight text-xs glow-green-text">
+            athena&gt;
+          </span>
+          {voiceSupported && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onToggleListening}
+              className={`p-1 rounded-sm border transition-all cursor-pointer flex items-center justify-center ${
+                isListening
+                  ? 'border-[#00f0ff] bg-[#00f0ff]/20 text-[#00f0ff] animate-pulse shadow-[0_0_8px_rgba(0,240,255,0.8)]'
+                  : 'border-[#00ff66]/30 bg-[#00ff66]/5 text-[#00ff66]/70 hover:border-[#00ff66] hover:text-[#00ff66] hover:bg-[#00ff66]/10'
+              }`}
+              title={
+                isListening
+                  ? 'Microphone is Listening... Click to stop.'
+                  : `Click to Speak (${voiceLanguage === 'hi-IN' ? 'Hindi/Hinglish' : 'Indian English'})`
+              }
+            >
+              {isListening ? (
+                <svg className="w-3.5 h-3.5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
         <div className="relative flex-1 flex items-center">
           <input
             ref={inputRef}

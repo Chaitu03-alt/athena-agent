@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List
 import structlog
-from sqlmodel import Session as SQLModelSession, select
+from sqlmodel import Session as SQLModelSession, select, col
 
 from app.models.session import Session
 from app.models.message import Message
@@ -63,7 +63,7 @@ class AgentOrchestrator:
         statement = (
             select(Message)
             .where(Message.session_id == session_id)
-            .order_by(Message.created_at.asc())
+            .order_by(col(Message.created_at).asc())
         )
         all_messages: List[Message] = list(db.exec(statement).all())
         windowed_messages = all_messages[-self.max_history_turns :]

@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 import structlog
-from sqlmodel import Session as SQLModelSession, select
+from sqlmodel import Session as SQLModelSession, select, col
 
 from app.config import settings
 from app.db.qdrant import (
@@ -86,7 +86,7 @@ class ReflectionService:
             db.exec(
                 select(MemoryProcedural)
                 .where(MemoryProcedural.is_active == True)  # noqa: E712
-                .order_by(MemoryProcedural.updated_at.desc(), MemoryProcedural.created_at.desc())
+                .order_by(col(MemoryProcedural.updated_at).desc(), col(MemoryProcedural.created_at).desc())
             ).all()
         )
         seen_statements: Dict[str, MemoryProcedural] = {}
@@ -168,7 +168,7 @@ class ReflectionService:
         # Sync procedural rules
         for rule in proc_rules:
             point_id = str(rule.id)
-            is_act = bool(rule.is_active)
+            is_act = rule.is_active
             try:
                 client.set_payload(
                     collection_name=DEFAULT_COLLECTION_NAME,
@@ -204,7 +204,7 @@ class ReflectionService:
         # Sync semantic facts
         for fact in sem_facts:
             point_id = str(fact.id)
-            is_act = bool(fact.is_active)
+            is_act = fact.is_active
             try:
                 client.set_payload(
                     collection_name=DEFAULT_COLLECTION_NAME,
@@ -277,7 +277,8 @@ class ReflectionService:
             if is_postgres:
                 from sqlalchemy import text
                 lock_stmt = text("SELECT pg_try_advisory_lock(:lock_id)")
-                lock_acquired = db.execute(lock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID}).scalar()
+                conn = db.connection()
+                lock_acquired = conn.execute(lock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID}).scalar()
                 if not lock_acquired:
                     logger.warning(
                         "Another worker process holds PostgreSQL consolidation advisory lock; skipping concurrent cycle",
@@ -296,7 +297,7 @@ class ReflectionService:
                 finally:
                     try:
                         unlock_stmt = text("SELECT pg_advisory_unlock(:lock_id)")
-                        db.execute(unlock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID})
+                        conn.execute(unlock_stmt, {"lock_id": POSTGRES_CONSOLIDATION_LOCK_ID})
                     except Exception as unlock_err:
                         logger.warning("Failed to release PostgreSQL advisory lock", error=str(unlock_err))
             else:
@@ -319,7 +320,7 @@ class ReflectionService:
             select(MemoryEpisodic)
             .where(MemoryEpisodic.consolidated == False)  # noqa: E712
             .where(MemoryEpisodic.importance_score >= importance_threshold)
-            .order_by(MemoryEpisodic.created_at.asc())
+            .order_by(col(MemoryEpisodic.created_at).asc())
         )
         candidates: List[MemoryEpisodic] = list(db.exec(statement).all())
 

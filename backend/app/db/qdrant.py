@@ -116,6 +116,7 @@ def upsert_memory_vector(
             if attempt == max_retries - 1:
                 logger.error("All retries exhausted for Qdrant upsert", point_id=point_id, error=str(exc))
                 raise
+    return False
 
 
 def update_memory_payload(
@@ -131,20 +132,20 @@ def update_memory_payload(
             client.set_payload(
                 collection_name=collection_name,
                 payload=payload_update,
-                points=[str(point_id)],
+                points=[point_id],
                 wait=True,
             )
-            logger.info("Updated Qdrant payload", point_id=str(point_id), payload_update=payload_update)
+            logger.info("Updated Qdrant payload", point_id=point_id, payload_update=payload_update)
             return True
         except Exception as exc:
             logger.warning(
                 "Failed attempt to update Qdrant payload",
-                point_id=str(point_id),
+                point_id=point_id,
                 attempt=attempt + 1,
                 error=str(exc),
             )
             if attempt == max_retries - 1:
-                logger.error("All retries exhausted for Qdrant payload update", point_id=str(point_id), error=str(exc))
+                logger.error("All retries exhausted for Qdrant payload update", point_id=point_id, error=str(exc))
                 return False
     return False
 
@@ -180,13 +181,17 @@ def search_memory_vectors(
             )
             points = response.points
         else:
-            points = client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                score_threshold=score_threshold,
-                query_filter=query_filter,
-            )
+            search_fn = getattr(client, "search", None)
+            if callable(search_fn):
+                points = search_fn(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    limit=limit,
+                    score_threshold=score_threshold,
+                    query_filter=query_filter,
+                )
+            else:
+                points = []
         results = []
         for hit in points:
             payload = hit.payload or {}

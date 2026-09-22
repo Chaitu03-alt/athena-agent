@@ -7,6 +7,7 @@ import uuid
 from app.orchestrator.turn import AgentTurn
 from app.providers.llm_provider import get_llm_provider
 from app.memory.checkpoints import CheckpointManager
+from app.memory.soul import SoulPromptManager
 from app.api.telemetry_routes import set_agent_state
 from app.api.telemetry_bus import telemetry_bus
 
@@ -45,7 +46,10 @@ async def execute_terminal_command(req: TerminalRequest) -> TerminalResponse:
         provider = get_llm_provider()
         turn = AgentTurn(provider=provider)
         
-        result = await turn.execute(messages)
+        active_soul = await SoulPromptManager.get_active_soul(default_if_none=True)
+        system_prompt = active_soul["prompt_text"] if active_soul else None
+        
+        result = await turn.execute(messages, system_prompt=system_prompt)
         assistant_content = result.get("content", "Task completed without output.")
         tool_calls_count = result.get("tool_calls_count", 0)
         

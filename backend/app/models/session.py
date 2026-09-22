@@ -3,13 +3,16 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, SQLModel
 
 
 class Session(SQLModel, table=True):
     """Chat session model matching SCHEMA.md §1.1."""
 
-    __tablename__ = "sessions"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "sessions"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

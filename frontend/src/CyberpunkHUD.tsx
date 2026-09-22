@@ -4,6 +4,8 @@ import { LeftDrawer } from './components/LeftDrawer';
 import { RightDrawer } from './components/RightDrawer';
 import { TerminalFeed, FeedItem } from './components/TerminalFeed';
 import { CommandInput } from './components/CommandInput';
+import { ParticleOrb, OrbState } from './components/ParticleOrb';
+import { useVoiceController } from './components/VoiceController';
 import { audio } from './utils/audio';
 import './styles/tokens.css';
 import './styles/layout.css';
@@ -37,6 +39,28 @@ export const CyberpunkHUD: React.FC = () => {
   ]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [transcribedInput, setTranscribedInput] = useState('');
+
+  // Voice Interaction Pipeline (Web Speech API STT + TTS)
+  const voice = useVoiceController({
+    language: 'en-IN',
+    onTranscriptChange: (text) => {
+      setTranscribedInput(text);
+    },
+  });
+
+  // Dynamic Orb State resolving voice, processing, and backend telemetry states
+  const effectiveOrbState: OrbState = voice.isSpeaking
+    ? 'speaking'
+    : voice.isListening
+    ? 'listening'
+    : isProcessing || telemetry.state === 'thinking'
+    ? 'thinking'
+    : telemetry.state === 'calling_tool'
+    ? 'calling_tool'
+    : 'idle';
+
   const terminalBottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -224,6 +248,9 @@ export const CyberpunkHUD: React.FC = () => {
       return;
     }
 
+    voice.stopSpeaking();
+    setTranscribedInput('');
+
     const timestamp = new Date().toLocaleTimeString();
     const userItem: FeedItem = {
       id: `user-${Date.now()}`,
@@ -255,6 +282,11 @@ export const CyberpunkHUD: React.FC = () => {
 
       setFeedItems((prev) => [...prev, assistantItem]);
       audio.play('tool_end');
+
+      // Voice synthesis for spoken interaction if enabled
+      if (isVoiceEnabled && !isMuted) {
+        voice.speak(content);
+      }
     } catch (err: any) {
       audio.play('error');
       setFeedItems((prev) => [
@@ -275,11 +307,22 @@ export const CyberpunkHUD: React.FC = () => {
     <div className={`crt-overlay ${scanlines ? 'crt-scanlines' : ''} hud-shell`}>
       {/* TopBar */}
       <TopBar
-        telemetry={telemetry}
+        telemetry={{
+          ...telemetry,
+          state: effectiveOrbState,
+        }}
         scanlines={scanlines}
         onToggleScanlines={() => setScanlines((v) => !v)}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
+        isVoiceEnabled={isVoiceEnabled}
+        onToggleVoice={() => {
+          setIsVoiceEnabled((v) => {
+            if (v) voice.stopSpeaking();
+            return !v;
+          });
+        }}
+        isSpeaking={voice.isSpeaking}
         leftOpen={leftDrawerOpen}
         onToggleLeft={() => setLeftDrawerOpen((v) => !v)}
         rightOpen={rightDrawerOpen}
@@ -295,18 +338,33 @@ export const CyberpunkHUD: React.FC = () => {
         />
 
         {/* Main Stage Terminal */}
-        <main className="hud-stage">
+        <main className="hud-stage relative overflow-hidden">
+          {/* Holographic 3D Particle Orb Canvas (Ambient Cyber Core Center Stage) */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-85 z-0">
+            <ParticleOrb state={effectiveOrbState} size={360} />
+          </div>
+
           {/* Terminal Scroll Feed */}
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between relative z-10">
             <TerminalFeed items={feedItems} />
             <div ref={terminalBottomRef} />
           </div>
 
           {/* Fixed Command Input */}
-          <CommandInput
-            onExecute={handleExecuteCommand}
-            disabled={isProcessing}
-          />
+          <div className="relative z-20">
+            <CommandInput
+              onExecute={handleExecuteCommand}
+              disabled={isProcessing}
+              isListening={voice.isListening}
+              onToggleListening={voice.toggleListening}
+              voiceLanguage={voice.language}
+              onToggleLanguage={() =>
+                voice.setLanguage(voice.language === 'hi-IN' ? 'en-IN' : 'hi-IN')
+              }
+              voiceSupported={voice.isSupported}
+              transcribedText={transcribedInput}
+            />
+          </div>
         </main>
 
         {/* Right Drawer: Cron & Autonomous Schedulers */}

@@ -4,13 +4,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from sqlalchemy import Column, JSON
+from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, SQLModel
 
 
 class Message(SQLModel, table=True):
     """Message model matching SCHEMA.md §1.2."""
 
-    __tablename__ = "messages"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "messages"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

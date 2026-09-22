@@ -196,14 +196,14 @@ async def test_background_worker_lifecycle():
     worker = AutonomousReflectionWorker(interval_seconds=1)
     task = asyncio.create_task(worker.start())
     await asyncio.sleep(0.1)
-    assert worker.is_running is True
+    assert worker.is_running
     worker.stop()
     task.cancel()
     try:
         await task
     except asyncio.CancelledError:
         pass
-    assert worker.is_running is False
+    assert not worker.is_running
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,9 @@ interface TopBarProps {
   onToggleScanlines: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  isVoiceEnabled?: boolean;
+  onToggleVoice?: () => void;
+  isSpeaking?: boolean;
   leftOpen: boolean;
   onToggleLeft: () => void;
   rightOpen: boolean;
@@ -28,6 +31,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleScanlines,
   isMuted,
   onToggleMute,
+  isVoiceEnabled = true,
+  onToggleVoice,
+  isSpeaking = false,
   leftOpen,
   onToggleLeft,
   rightOpen,
@@ -46,6 +52,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         return 'bg-amber-400 text-black shadow-[0_0_8px_rgba(255,184,0,0.8)]';
       case 'calling_tool':
         return 'bg-cyan-400 text-black shadow-[0_0_8px_rgba(0,240,255,0.8)]';
+      case 'speaking':
+        return 'bg-[#00f0ff] text-black shadow-[0_0_8px_rgba(0,240,255,0.9)]';
+      case 'listening':
+        return 'bg-rose-400 text-black shadow-[0_0_8px_rgba(251,113,133,0.9)]';
       default:
         return 'bg-[#00ff66] text-black shadow-[0_0_8px_rgba(0,255,102,0.8)]';
     }
@@ -142,6 +152,28 @@ export const TopBar: React.FC<TopBarProps> = ({
             {telemetry.wsStatus === 'connected' ? 'WS: LIVE' : telemetry.wsStatus.toUpperCase()}
           </span>
         </div>
+
+        {/* Voice Mode Toggle */}
+        <button
+          onClick={() => { onToggleVoice?.(); audio.play('keystroke'); }}
+          className={`px-2 py-0.5 border text-[10px] cursor-pointer transition-colors flex items-center gap-1.5 ${
+            isVoiceEnabled
+              ? isSpeaking
+                ? 'border-[#00f0ff] bg-[#00f0ff]/20 text-[#00f0ff] animate-pulse shadow-[0_0_8px_rgba(0,240,255,0.7)]'
+                : 'border-[#00f0ff]/60 text-[#00f0ff] hover:bg-[#00f0ff]/10 shadow-[0_0_5px_rgba(0,240,255,0.3)]'
+              : 'border-[#6f9c82]/30 text-[#6f9c82]/50 hover:border-[#6f9c82]/60'
+          }`}
+          title="Toggle Athena Voice Mode (Speech Synthesis & Voice Interaction)"
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            isVoiceEnabled
+              ? isSpeaking
+                ? 'bg-[#00f0ff] animate-ping'
+                : 'bg-[#00f0ff]'
+              : 'bg-zinc-600'
+          }`} />
+          <span>VOICE: {isVoiceEnabled ? 'ON' : 'OFF'}</span>
+        </button>
 
         {/* Sound Toggle */}
         <button

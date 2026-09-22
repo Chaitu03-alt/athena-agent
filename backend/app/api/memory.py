@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlmodel import Session as SQLModelSession, select
+from sqlmodel import Session as SQLModelSession, select, col
 
 from app.db.session import get_session
 from app.db.qdrant import get_qdrant_client, get_qdrant_health, update_memory_payload, DEFAULT_COLLECTION_NAME
@@ -103,7 +103,7 @@ def list_rules(
         stmt = stmt.where(MemoryProcedural.is_active == True)  # noqa: E712
     if category:
         stmt = stmt.where(MemoryProcedural.category == category)
-    stmt = stmt.order_by(MemoryProcedural.version.desc(), MemoryProcedural.updated_at.desc())
+    stmt = stmt.order_by(col(MemoryProcedural.version).desc(), col(MemoryProcedural.updated_at).desc())
     return list(db.exec(stmt).all())
 
 
@@ -209,7 +209,7 @@ def list_procedural_memories(
         stmt = stmt.where(MemoryProcedural.is_active == True)  # noqa: E712
     if category:
         stmt = stmt.where(MemoryProcedural.category == category)
-    stmt = stmt.order_by(MemoryProcedural.version.desc(), MemoryProcedural.created_at.desc())
+    stmt = stmt.order_by(col(MemoryProcedural.version).desc(), col(MemoryProcedural.created_at).desc())
     return list(db.exec(stmt).all())
 
 
@@ -225,7 +225,7 @@ def list_semantic_memories(
         stmt = stmt.where(MemorySemantic.is_active == True)  # noqa: E712
     if category:
         stmt = stmt.where(MemorySemantic.category == category)
-    stmt = stmt.order_by(MemorySemantic.version.desc(), MemorySemantic.created_at.desc())
+    stmt = stmt.order_by(col(MemorySemantic.version).desc(), col(MemorySemantic.created_at).desc())
     return list(db.exec(stmt).all())
 
 
@@ -239,7 +239,7 @@ def list_episodic_memories(
     stmt = select(MemoryEpisodic)
     if consolidated is not None:
         stmt = stmt.where(MemoryEpisodic.consolidated == consolidated)
-    stmt = stmt.order_by(MemoryEpisodic.created_at.desc()).limit(limit)
+    stmt = stmt.order_by(col(MemoryEpisodic.created_at).desc()).limit(limit)
     return list(db.exec(stmt).all())
 
 

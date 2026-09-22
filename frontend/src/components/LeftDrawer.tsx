@@ -27,7 +27,8 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({ isOpen, onClose }) => {
     try {
       const res = await fetch('/api/memory/soul');
       const data = await res.json();
-      const prompt = data.prompt || '';
+      const rawPrompt = data.prompt;
+      const prompt = typeof rawPrompt === 'object' && rawPrompt ? rawPrompt.prompt_text || '' : String(rawPrompt || '');
       setSoulPrompt(prompt);
       setOriginalSoul(prompt);
     } catch {

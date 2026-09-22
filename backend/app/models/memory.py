@@ -4,13 +4,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from sqlalchemy import Column, JSON
+from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, SQLModel
 
 
 class MemoryEpisodic(SQLModel, table=True):
     """Episodic memory model matching SCHEMA.md §1.3."""
 
-    __tablename__ = "memory_episodic"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "memory_episodic"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -58,7 +61,9 @@ class MemoryEpisodic(SQLModel, table=True):
 class MemorySemantic(SQLModel, table=True):
     """Semantic memory model matching SCHEMA.md §1.4."""
 
-    __tablename__ = "memory_semantic"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "memory_semantic"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -91,7 +96,9 @@ class MemorySemantic(SQLModel, table=True):
 class MemoryProcedural(SQLModel, table=True):
     """Procedural memory model matching SCHEMA.md §1.5."""
 
-    __tablename__ = "memory_procedural"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "memory_procedural"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -136,7 +143,9 @@ class MemoryProcedural(SQLModel, table=True):
 class ApprovalQueueItem(SQLModel, table=True):
     """Approval queue model matching SCHEMA.md §1.6."""
 
-    __tablename__ = "approval_queue"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "approval_queue"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

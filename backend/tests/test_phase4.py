@@ -59,8 +59,8 @@ def test_patch_rule_status_toggle(db_session: SQLModelSession):
 
         # Verify in database
         db_session.refresh(rule)
-        assert rule.is_active is False
-        assert rule.active is False
+        assert not rule.is_active
+        assert not rule.active
 
         # 2. Toggle back to True (reactivate)
         patch_resp2 = client.patch(
@@ -73,8 +73,8 @@ def test_patch_rule_status_toggle(db_session: SQLModelSession):
         assert data2["is_active"] is True
 
         db_session.refresh(rule)
-        assert rule.is_active is True
-        assert rule.active is True
+        assert rule.is_active
+        assert rule.active
 
     finally:
         db_session.delete(rule)

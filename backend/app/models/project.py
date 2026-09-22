@@ -4,13 +4,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from sqlalchemy import Column, JSON
+from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, SQLModel
 
 
 class Project(SQLModel, table=True):
     """Registered project model matching SCHEMA.md §1.7."""
 
-    __tablename__ = "projects"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "projects"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -32,7 +35,9 @@ class Project(SQLModel, table=True):
 class ToolCallLog(SQLModel, table=True):
     """Tool execution log model matching SCHEMA.md §1.8."""
 
-    __tablename__ = "tool_calls_log"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "tool_calls_log"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -66,7 +71,9 @@ class ToolCallLog(SQLModel, table=True):
 class FeedbackEvent(SQLModel, table=True):
     """User feedback event model matching SCHEMA.md §1.9."""
 
-    __tablename__ = "feedback_events"
+    @declared_attr.directive
+    def __tablename__(cls) -> str:
+        return "feedback_events"
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
